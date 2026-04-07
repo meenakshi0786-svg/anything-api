@@ -14,7 +14,6 @@ RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules 2>/dev/null || true
 COPY packages/ packages/
 COPY apps/web/ apps/web/
 COPY pnpm-workspace.yaml package.json tsconfig.base.json ./
@@ -36,7 +35,7 @@ ENV NODE_ENV=production
 # Copy built app
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder /app/apps/web/public ./apps/web/public 2>/dev/null || true
+RUN mkdir -p ./apps/web/public
 
 EXPOSE 3000
 
