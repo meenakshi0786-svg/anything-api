@@ -13,6 +13,13 @@ const scryptAsync = promisify(scrypt);
 const JWT_SECRET = process.env.JWT_SECRET!;
 const JWT_EXPIRY = "7d";
 
+// OAuth config
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
+const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || "";
+const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || "";
+const OAUTH_REDIRECT_BASE = process.env.PUBLIC_API_URL || process.env.CORS_ORIGIN || "http://localhost:3001";
+
 // ─── Helpers ──────────────────────────────────────────────
 
 async function hashPassword(password: string): Promise<string> {
@@ -295,4 +302,195 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(204).send();
     },
   });
+
+  // ═══════════════════════════════════════════════════════
+  // OAUTH — Google
+  // ═══════════════════════════════════════════════════════
+
+  // Step 1: Redirect to Google
+  app.get("/auth/google", async (request, reply) => {
+    if (!GOOGLE_CLIENT_ID) {
+      return reply.status(501).send({
+        error: { code: "OAUTH_NOT_CONFIGURED", message: "Google OAuth is not configured" },
+      });
+    }
+
+    const redirectUri = `${OAUTH_REDIRECT_BASE}/v1/auth/google/callback`;
+    const scope = encodeURIComponent("openid email profile");
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;
+
+    return reply.redirect(url);
+  });
+
+  // Step 2: Google callback
+  app.get("/auth/google/callback", async (request, reply) => {
+    const { code } = request.query as { code?: string };
+    if (!code) {
+      return reply.status(400).send({ error: { code: "MISSING_CODE", message: "No authorization code" } });
+    }
+
+    const redirectUri = `${OAUTH_REDIRECT_BASE}/v1/auth/google/callback`;
+
+    // Exchange code for tokens
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code,
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        redirect_uri: redirectUri,
+        grant_type: "authorization_code",
+      }),
+    });
+
+    if (!tokenRes.ok) {
+      return reply.status(400).send({ error: { code: "OAUTH_FAILED", message: "Google token exchange failed" } });
+    }
+
+    const tokens = await tokenRes.json();
+
+    // Get user info
+    const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    });
+    const profile = await userRes.json();
+
+    // Find or create user
+    const token = await findOrCreateOAuthUser({
+      email: profile.email,
+      name: profile.name || profile.email.split("@")[0],
+      avatarUrl: profile.picture || null,
+      provider: "google",
+    });
+
+    // Redirect to frontend with token
+    const frontendUrl = process.env.CORS_ORIGIN || "http://localhost:3000";
+    return reply.redirect(`${frontendUrl}/auth/callback?token=${token}`);
+  });
+
+  // ═══════════════════════════════════════════════════════
+  // OAUTH — GitHub
+  // ═══════════════════════════════════════════════════════
+
+  // Step 1: Redirect to GitHub
+  app.get("/auth/github", async (request, reply) => {
+    if (!GITHUB_CLIENT_ID) {
+      return reply.status(501).send({
+        error: { code: "OAUTH_NOT_CONFIGURED", message: "GitHub OAuth is not configured" },
+      });
+    }
+
+    const redirectUri = `${OAUTH_REDIRECT_BASE}/v1/auth/github/callback`;
+    const scope = encodeURIComponent("user:email");
+    const url = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}`;
+
+    return reply.redirect(url);
+  });
+
+  // Step 2: GitHub callback
+  app.get("/auth/github/callback", async (request, reply) => {
+    const { code } = request.query as { code?: string };
+    if (!code) {
+      return reply.status(400).send({ error: { code: "MISSING_CODE", message: "No authorization code" } });
+    }
+
+    // Exchange code for token
+    const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        client_id: GITHUB_CLIENT_ID,
+        client_secret: GITHUB_CLIENT_SECRET,
+        code,
+      }),
+    });
+
+    const tokens = await tokenRes.json();
+    if (!tokens.access_token) {
+      return reply.status(400).send({ error: { code: "OAUTH_FAILED", message: "GitHub token exchange failed" } });
+    }
+
+    // Get user profile
+    const userRes = await fetch("https://api.github.com/user", {
+      headers: {
+        Authorization: `Bearer ${tokens.access_token}`,
+        Accept: "application/vnd.github+json",
+      },
+    });
+    const profile = await userRes.json();
+
+    // Get primary email (may be private)
+    let email = profile.email;
+    if (!email) {
+      const emailRes = await fetch("https://api.github.com/user/emails", {
+        headers: {
+          Authorization: `Bearer ${tokens.access_token}`,
+          Accept: "application/vnd.github+json",
+        },
+      });
+      const emails = await emailRes.json();
+      const primary = emails.find((e: any) => e.primary) || emails[0];
+      email = primary?.email;
+    }
+
+    if (!email) {
+      return reply.status(400).send({ error: { code: "NO_EMAIL", message: "Could not get email from GitHub" } });
+    }
+
+    const token = await findOrCreateOAuthUser({
+      email,
+      name: profile.name || profile.login,
+      avatarUrl: profile.avatar_url || null,
+      provider: "github",
+    });
+
+    const frontendUrl = process.env.CORS_ORIGIN || "http://localhost:3000";
+    return reply.redirect(`${frontendUrl}/auth/callback?token=${token}`);
+  });
 };
+
+// ─── OAuth helper ──────────────────────────────────────────
+
+async function findOrCreateOAuthUser(profile: {
+  email: string;
+  name: string;
+  avatarUrl: string | null;
+  provider: string;
+}): Promise<string> {
+  // Check if user exists
+  let [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, profile.email))
+    .limit(1);
+
+  if (!user) {
+    // Create new user (no password — OAuth only)
+    [user] = await db
+      .insert(users)
+      .values({
+        email: profile.email,
+        name: profile.name,
+        avatarUrl: profile.avatarUrl,
+      })
+      .returning();
+  } else {
+    // Update avatar if missing
+    if (!user.avatarUrl && profile.avatarUrl) {
+      await db
+        .update(users)
+        .set({ avatarUrl: profile.avatarUrl, updatedAt: new Date() })
+        .where(eq(users.id, user.id));
+    }
+  }
+
+  return signJwt({
+    userId: user.id,
+    email: user.email,
+    plan: user.plan,
+  });
+}
