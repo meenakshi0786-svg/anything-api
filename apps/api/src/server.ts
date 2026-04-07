@@ -16,12 +16,14 @@ const app = Fastify({
         ? { target: "pino-pretty" }
         : undefined,
   },
-  requestId: true,
+  genReqId: () => `req-${Date.now()}`,
 });
 
 // ─── Plugins ──────────────────────────────────────────────
 await app.register(cors, {
-  origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+  origin: process.env.CORS_ORIGIN === "*"
+    ? true
+    : (process.env.CORS_ORIGIN || "http://localhost:3000"),
   credentials: true,
 });
 
@@ -29,13 +31,12 @@ await app.register(rateLimit, {
   max: 100,
   timeWindow: "1 minute",
   keyGenerator: (req) => {
-    // Use API key if present, otherwise IP
     return (req.headers["x-api-key"] as string) || req.ip;
   },
 });
 
 // ─── Global error handler ─────────────────────────────────
-app.setErrorHandler((error, request, reply) => {
+app.setErrorHandler((error: any, request, reply) => {
   request.log.error(error);
 
   const statusCode = error.statusCode || 500;
