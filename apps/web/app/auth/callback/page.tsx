@@ -1,15 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api-client";
 
-/**
- * OAuth callback page.
- * Receives ?token=JWT from the API after Google/GitHub OAuth,
- * stores it, and redirects to the dashboard.
- */
-export default function AuthCallbackPage() {
+function CallbackHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -24,11 +19,26 @@ export default function AuthCallbackPage() {
   }, [searchParams, router]);
 
   return (
+    <div className="flex flex-col items-center gap-3">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+      <p className="text-sm text-gray-400">Signing you in...</p>
+    </div>
+  );
+}
+
+export default function AuthCallbackPage() {
+  return (
     <div className="flex min-h-screen items-center justify-center bg-gray-950">
-      <div className="flex flex-col items-center gap-3">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-        <p className="text-sm text-gray-400">Signing you in...</p>
-      </div>
+      <Suspense
+        fallback={
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+            <p className="text-sm text-gray-400">Loading...</p>
+          </div>
+        }
+      >
+        <CallbackHandler />
+      </Suspense>
     </div>
   );
 }
