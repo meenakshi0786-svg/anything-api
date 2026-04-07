@@ -28,4 +28,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
   CMD wget -qO- http://localhost:3000 || exit 1
 
-CMD ["npx", "--prefix", "apps/web", "next", "start", "--port", "3000"]
+WORKDIR /app/apps/web
+CMD ["npx", "next", "start", "--port", "3000"]
