@@ -1,8 +1,19 @@
 import Link from "next/link";
+import { CursorGlow } from "@/components/effects/cursor-glow";
+import { GridSpotlight } from "@/components/effects/grid-spotlight";
+import { CursorTrail } from "@/components/effects/cursor-trail";
+import { AmbientBackground } from "@/components/effects/ambient-bg";
+import { HeroIllustration } from "@/components/effects/hero-illustration";
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-gray-950">
+    <div className="relative min-h-screen bg-[#030712] overflow-x-hidden">
+      {/* Background effects */}
+      <AmbientBackground />
+      <CursorGlow />
+      <GridSpotlight />
+      <CursorTrail />
+
       {/* Nav */}
       <nav className="border-b border-gray-800/50">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
@@ -21,7 +32,7 @@ export default function LandingPage() {
             <a href="#pricing" className="text-sm text-gray-400 hover:text-white">
               Pricing
             </a>
-            <a href="#docs" className="text-sm text-gray-400 hover:text-white">
+            <a href="/docs" className="text-sm text-gray-400 hover:text-white">
               Docs
             </a>
             <Link
@@ -66,7 +77,7 @@ export default function LandingPage() {
             Start Building — Free
           </Link>
           <a
-            href="#docs"
+            href="/docs"
             className="rounded-xl border border-gray-700 px-8 py-3.5 text-base font-semibold text-gray-300 transition hover:border-gray-600 hover:text-white"
           >
             View Docs
@@ -119,6 +130,9 @@ export default function LandingPage() {
             </code>
           </pre>
         </div>
+
+        {/* Hero illustration — Website → AI → JSON API flow */}
+        <HeroIllustration />
       </section>
 
       {/* Features */}
@@ -330,7 +344,7 @@ export default function LandingPage() {
               API for Anything
             </div>
             <div className="flex gap-6 text-sm text-gray-500">
-              <a href="#" className="hover:text-white">Docs</a>
+              <a href="/docs" className="hover:text-white">Docs</a>
               <a href="#" className="hover:text-white">GitHub</a>
               <a href="#" className="hover:text-white">Twitter</a>
               <a href="#" className="hover:text-white">Discord</a>
