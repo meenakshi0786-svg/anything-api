@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@afa/db": ["./packages/db/src"],
+      "@afa/types": ["./packages/types/src"],
+      "@afa/config": ["./packages/config/src"],
+      "@afa/utils": ["./packages/utils/src"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}

@@ -1,0 +1,115 @@
+version: "3.9"
+
+# ═══════════════════════════════════════════════════════════
+# PRODUCTION — API for Anything
+# Ports: API=4001, Web=4000, Postgres=5433, Redis=6380
+# Does NOT conflict with any existing services
+# ═══════════════════════════════════════════════════════════
+
+services:
+  # ─── PostgreSQL (port 5433 to avoid conflicts) ──────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: afa-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-afa}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-anythingapi}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - afa_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-afa}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis (port 6380 to avoid conflicts) ───────────────
+  redis:
+    image: redis:7-alpine
+    container_name: afa-redis
+    restart: always
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - afa_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── API Server (port 4001) ─────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: afa-api
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "0.0.0.0:4001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgres://${DB_USER:-afa}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-anythingapi}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      LOG_LEVEL: info
+      # AI — set one of these
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+
+  # ─── Execution Worker ───────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    container_name: afa-worker
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${DB_USER:-afa}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-anythingapi}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      BROWSER_POOL_SIZE: ${BROWSER_POOL_SIZE:-3}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-3}
+      PROXY_ENABLED: ${PROXY_ENABLED:-false}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    shm_size: "2gb"
+    cap_add:
+      - SYS_ADMIN
+
+  # ─── Web Dashboard (port 4000) ──────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: afa-web
+    restart: always
+    depends_on:
+      - api
+    ports:
+      - "0.0.0.0:4000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://187.127.141.233:4001}
+      NEXT_PUBLIC_WS_URL: ${PUBLIC_WS_URL:-ws://187.127.141.233:4001}
+
+volumes:
+  afa_postgres_data:
+  afa_redis_data:

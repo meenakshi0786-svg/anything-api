@@ -1,0 +1,135 @@
+version: "3.9"
+
+services:
+  # ─── PostgreSQL ───────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: afa-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: afa
+      POSTGRES_PASSWORD: afa_dev_password
+      POSTGRES_DB: anythingapi
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U afa"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─── Redis (Queue + Cache + Sessions) ────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: afa-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─── MinIO (S3-compatible storage for screenshots/results)
+  minio:
+    image: minio/minio:latest
+    container_name: afa-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: afa_minio
+      MINIO_ROOT_PASSWORD: afa_minio_secret
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Console UI
+    volumes:
+      - minio_data:/data
+
+  # ─── API Server (Fastify) ────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: afa-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgres://afa:afa_dev_password@postgres:5432/anythingapi
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: afa_minio
+      S3_SECRET_KEY: afa_minio_secret
+      S3_BUCKET: afa-storage
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-in-production}
+    volumes:
+      - ./apps/api/src:/app/apps/api/src
+      - ./packages:/app/packages
+
+  # ─── Execution Worker ────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    container_name: afa-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://afa:afa_dev_password@postgres:5432/anythingapi
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: afa_minio
+      S3_SECRET_KEY: afa_minio_secret
+      S3_BUCKET: afa-storage
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      BROWSER_POOL_SIZE: 5
+      PROXY_ENABLED: "false"
+    volumes:
+      - ./apps/worker/src:/app/apps/worker/src
+      - ./packages:/app/packages
+    # Playwright needs these for headless Chrome
+    shm_size: "2gb"
+    cap_add:
+      - SYS_ADMIN
+
+  # ─── Web Dashboard (Next.js) ─────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: afa-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      NEXT_PUBLIC_WS_URL: ws://localhost:3001
+    volumes:
+      - ./apps/web:/app/apps/web
+      - /app/apps/web/node_modules
+      - /app/apps/web/.next
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

@@ -1,0 +1,94 @@
+name: Publish SDKs
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  # ────────────────────────────────────────────────────────────
+  # Publish TypeScript SDK to npm
+  # ────────────────────────────────────────────────────────────
+  publish-npm:
+    name: Publish TypeScript SDK to npm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Set SDK version
+        working-directory: sdks/typescript
+        run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version
+
+      - name: Build TypeScript SDK
+        run: pnpm exec turbo run build --filter=@anythingapi/sdk
+
+      - name: Publish to npm
+        working-directory: sdks/typescript
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ────────────────────────────────────────────────────────────
+  # Publish Python SDK to PyPI
+  # ────────────────────────────────────────────────────────────
+  publish-pypi:
+    name: Publish Python SDK to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/anythingapi/
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install --upgrade build twine
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Update version in pyproject.toml
+        working-directory: sdks/python
+        run: |
+          sed -i "s/^version = .*/version = \"${{ steps.version.outputs.version }}\"/" pyproject.toml
+
+      - name: Build package
+        working-directory: sdks/python
+        run: python -m build
+
+      - name: Publish to PyPI
+        working-directory: sdks/python
+        run: twine upload dist/*
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}

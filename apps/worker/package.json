@@ -1,0 +1,25 @@
+{
+  "name": "@afa/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/worker.ts",
+    "build": "tsup src/worker.ts --format esm",
+    "start": "node dist/worker.js"
+  },
+  "dependencies": {
+    "@afa/db": "workspace:*",
+    "@afa/types": "workspace:*",
+    "bullmq": "^5.30.0",
+    "ioredis": "^5.4.0",
+    "playwright": "^1.49.0",
+    "@anthropic-ai/sdk": "^0.39.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.7.0"
+  }
+}

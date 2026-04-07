@@ -1,0 +1,55 @@
+version: 2
+
+updates:
+  # ── npm (pnpm) dependencies ────────────────────────────────
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    open-pull-requests-limit: 10
+    reviewers:
+      - rubals
+    labels:
+      - dependencies
+      - npm
+    groups:
+      # Group minor and patch updates to reduce PR noise
+      production-deps:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      dev-deps:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+
+  # ── pip (Python SDK) dependencies ──────────────────────────
+  - package-ecosystem: pip
+    directory: /sdks/python
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - python
+
+  # ── GitHub Actions ─────────────────────────────────────────
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
