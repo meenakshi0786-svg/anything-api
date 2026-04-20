@@ -11,10 +11,10 @@
   "dependencies": {
     "@afa/db": "workspace:*",
     "@afa/types": "workspace:*",
-    "bullmq": "^5.30.0",
+    "bullmq": "^5.75.2",
     "ioredis": "^5.4.0",
     "playwright": "^1.49.0",
-    "@anthropic-ai/sdk": "^0.39.0",
+    "@anthropic-ai/sdk": "^0.90.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
