@@ -28,9 +28,9 @@ const ANTHROPIC_MODELS: Record<ModelTier, string> = {
 
 // ─── OpenRouter model IDs ────────────────────────────────
 const OPENROUTER_MODELS: Record<ModelTier, string> = {
-  fast: "anthropic/claude-haiku-4-5-20251001",
-  balanced: "anthropic/claude-sonnet-4-6-20250514",
-  powerful: "anthropic/claude-opus-4-6-20250414",
+  fast: "anthropic/claude-haiku-4.5",
+  balanced: "anthropic/claude-sonnet-4.6",
+  powerful: "anthropic/claude-opus-4.6",
 };
 
 type Provider = "openai" | "anthropic" | "openrouter";
