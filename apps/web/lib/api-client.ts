@@ -89,6 +89,21 @@ class ApiClient {
     },
   };
 
+  // ─── API Keys ─────────────────────────────────────────
+  apiKeys = {
+    list: () =>
+      this.request<{ data: any[] }>("/auth/api-keys"),
+
+    create: (body: { name: string; expiresInDays?: number }) =>
+      this.request<{ data: any; meta: any }>("/auth/api-keys", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+
+    revoke: (id: string) =>
+      this.request<void>(`/auth/api-keys/${id}`, { method: "DELETE" }),
+  };
+
   // ─── Workflows ────────────────────────────────────────
   workflows = {
     list: (page = 1, perPage = 20) =>
@@ -103,8 +118,37 @@ class ApiClient {
         body: JSON.stringify(body),
       }),
 
+    update: (id: string, body: { name?: string; description?: string; settings?: any; isActive?: boolean }) =>
+      this.request<{ data: any }>(`/workflows/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+
+    saveSteps: (id: string, steps: any[], inputSchema?: any, outputSchema?: any) =>
+      this.request<{ data: any }>(`/workflows/${id}/versions`, {
+        method: "POST",
+        body: JSON.stringify({ steps, inputSchema, outputSchema }),
+      }),
+
     delete: (id: string) =>
       this.request<void>(`/workflows/${id}`, { method: "DELETE" }),
+  };
+
+  // ─── Templates ────────────────────────────────────────
+  templates = {
+    list: () =>
+      this.request<{ data: any[]; meta: { categories: string[]; total: number } }>(
+        "/templates"
+      ),
+
+    get: (id: string) =>
+      this.request<{ data: any }>(`/templates/${id}`),
+
+    install: (id: string) =>
+      this.request<{ data: any }>(`/templates/${id}/install`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
   };
 
   // ─── Runs ─────────────────────────────────────────────
@@ -120,6 +164,16 @@ class ApiClient {
         method: "POST",
         body: JSON.stringify(body),
       }),
+
+    list: (params: { page?: number; perPage?: number; workflowId?: string; status?: string } = {}) => {
+      const qs = new URLSearchParams();
+      if (params.page) qs.set("page", String(params.page));
+      if (params.perPage) qs.set("perPage", String(params.perPage));
+      if (params.workflowId) qs.set("workflowId", params.workflowId);
+      if (params.status) qs.set("status", params.status);
+      const q = qs.toString();
+      return this.request<{ data: any[]; meta: any }>(`/runs${q ? "?" + q : ""}`);
+    },
 
     get: (id: string) =>
       this.request<{ data: any }>(`/runs/${id}`),

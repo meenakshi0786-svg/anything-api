@@ -7,6 +7,7 @@ import { runRoutes } from "./routes/runs.js";
 import { scheduleRoutes } from "./routes/schedules.js";
 import { studioRoutes } from "./routes/studio.js";
 import { authRoutes } from "./routes/auth.js";
+import { templateRoutes } from "./routes/templates.js";
 
 const app = Fastify({
   logger: {
@@ -59,6 +60,7 @@ await app.register(runRoutes, { prefix: "/v1" });
 await app.register(scheduleRoutes, { prefix: "/v1" });
 await app.register(studioRoutes, { prefix: "/v1" });
 await app.register(authRoutes, { prefix: "/v1" });
+await app.register(templateRoutes, { prefix: "/v1" });
 
 // ─── Start ────────────────────────────────────────────────
 const port = Number(process.env.PORT) || 3001;

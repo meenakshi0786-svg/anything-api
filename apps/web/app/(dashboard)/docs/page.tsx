@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-type DocSection = "quickstart" | "api" | "sdk-python" | "sdk-typescript" | "workflows" | "runs" | "schedules" | "auth";
+type DocSection = "quickstart" | "api" | "sdk-python" | "sdk-typescript" | "workflows" | "runs" | "schedules" | "auth" | "mcp";
 
 const sections: { id: DocSection; title: string }[] = [
   { id: "quickstart", title: "Quickstart" },
@@ -13,6 +13,7 @@ const sections: { id: DocSection; title: string }[] = [
   { id: "api", title: "API Reference" },
   { id: "sdk-python", title: "Python SDK" },
   { id: "sdk-typescript", title: "TypeScript SDK" },
+  { id: "mcp", title: "MCP (Cursor / Claude)" },
 ];
 
 export default function DocsPage() {
@@ -52,6 +53,7 @@ export default function DocsPage() {
         {active === "api" && <ApiReference />}
         {active === "sdk-python" && <PythonSDK />}
         {active === "sdk-typescript" && <TypeScriptSDK />}
+        {active === "mcp" && <MCPDocs />}
       </div>
     </div>
   );
@@ -459,6 +461,68 @@ const batch = await client.runs.batch({
   concurrency: 3,
 });`}
       />
+    </div>
+  );
+}
+
+
+function MCPDocs() {
+  return (
+    <div>
+      <H1>MCP — Cursor / Claude Desktop / Windsurf</H1>
+      <P>
+        Use the MCP server to expose your workflows as native tools inside any
+        MCP-compatible AI coding assistant. The AI can then call your APIs
+        with structured arguments and receive structured JSON results.
+      </P>
+
+      <H2>1. Get an API key</H2>
+      <P>Go to Settings &rarr; API Keys &rarr; Create Key. Copy the key.</P>
+
+      <H2>2. Add to Claude Desktop</H2>
+      <P>Edit <code className="rounded bg-gray-800 px-1.5 py-0.5 text-brand-400">~/Library/Application Support/Claude/claude_desktop_config.json</code>:</P>
+      <CodeBlock
+        title="claude_desktop_config.json"
+        code={`{
+  "mcpServers": {
+    "anything-api": {
+      "command": "npx",
+      "args": ["-y", "@afa/mcp-server"],
+      "env": {
+        "AFA_API_KEY": "afa_sk_live_xxxxx",
+        "AFA_API_URL": "http://localhost:3001"
+      }
+    }
+  }
+}`}
+      />
+
+      <H2>3. Add to Cursor</H2>
+      <P>Cursor uses the same MCP config format. Add it under Settings &rarr; MCP &rarr; Add Server, or edit <code className="rounded bg-gray-800 px-1.5 py-0.5 text-brand-400">~/.cursor/mcp.json</code> with the same JSON above.</P>
+
+      <H2>4. Restart your client</H2>
+      <P>Restart Claude Desktop or Cursor. Your workflows will appear as tools.</P>
+
+      <H2>How it works</H2>
+      <P>
+        Each <strong>active</strong> workflow becomes one tool, named after its slug
+        (with hyphens replaced by underscores). The tool input matches the
+        workflow input schema.
+      </P>
+
+      <H2>Example</H2>
+      <P>If you have a workflow called <code>amazon-product-scraper</code>:</P>
+      <CodeBlock
+        title="In Cursor / Claude Desktop chat"
+        code={`You: Get the price of https://amazon.com/dp/B09V3KXJPB
+
+[Claude calls the amazon_product_scraper tool with { url: "..." }]
+
+Claude: The price is $189.99 with 89,432 reviews and 4.7 stars.`}
+      />
+
+      <H2>Built-in helper tool</H2>
+      <P>The MCP server also exposes <code className="rounded bg-gray-800 px-1.5 py-0.5 text-brand-400">list_workflows</code> so the AI can discover what is available before calling anything.</P>
     </div>
   );
 }

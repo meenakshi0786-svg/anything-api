@@ -64,6 +64,14 @@ const createApiKeySchema = z.object({
 // ─── Routes ───────────────────────────────────────────────
 
 export const authRoutes: FastifyPluginAsync = async (app) => {
+  // ── OAuth provider availability ───────────────────────
+  app.get("/auth/providers", async () => ({
+    data: {
+      google: !!GOOGLE_CLIENT_ID,
+      github: !!GITHUB_CLIENT_ID,
+    },
+  }));
+
   // ── Signup ────────────────────────────────────────────
   app.post("/auth/signup", async (request, reply) => {
     const body = signupSchema.parse(request.body);

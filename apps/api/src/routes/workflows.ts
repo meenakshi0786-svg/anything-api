@@ -279,6 +279,62 @@ export const workflowRoutes: FastifyPluginAsync = async (app) => {
     },
   });
 
+  // Save edited steps as a new version
+  app.post("/workflows/:id/versions", {
+    preHandler: [authenticate],
+    handler: async (request, reply) => {
+      const auth = (request as any).auth as AuthContext;
+      const { id } = request.params as { id: string };
+      const body = z
+        .object({
+          steps: z.array(z.any()).min(1),
+          inputSchema: z.any().optional(),
+          outputSchema: z.any().optional(),
+          changelog: z.string().optional(),
+        })
+        .parse(request.body);
+
+      const [workflow] = await db
+        .select()
+        .from(workflows)
+        .where(and(eq(workflows.id, id), eq(workflows.userId, auth.userId)))
+        .limit(1);
+
+      if (!workflow) {
+        return reply.status(404).send({
+          error: { code: "NOT_FOUND", message: "Workflow not found" },
+        });
+      }
+
+      const newVersion = workflow.currentVersion + 1;
+
+      await db.insert(workflowVersions).values({
+        workflowId: id,
+        version: newVersion,
+        steps: body.steps,
+        inputSchema: body.inputSchema || workflow.inputSchema,
+        outputSchema: body.outputSchema || workflow.outputSchema,
+        changelog: body.changelog || "Edited via visual builder",
+        createdBy: "user",
+      });
+
+      await db
+        .update(workflows)
+        .set({
+          currentVersion: newVersion,
+          inputSchema: body.inputSchema || workflow.inputSchema,
+          outputSchema: body.outputSchema || workflow.outputSchema,
+          updatedAt: new Date(),
+        })
+        .where(eq(workflows.id, id));
+
+      return reply.send({
+        data: { workflowId: id, version: newVersion, steps: body.steps },
+        meta: { requestId: request.id },
+      });
+    },
+  });
+
   // Get workflow versions
   app.get("/workflows/:id/versions", {
     preHandler: [authenticate],

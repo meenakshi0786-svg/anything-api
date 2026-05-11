@@ -33,6 +33,11 @@ const config: Config = {
         "float-1": "float1 8s ease-in-out infinite",
         "float-2": "float2 12s ease-in-out infinite",
         "float-3": "float3 10s ease-in-out infinite",
+        "mesh-1": "mesh1 18s ease-in-out infinite",
+        "mesh-2": "mesh2 22s ease-in-out infinite",
+        "mesh-3": "mesh3 26s ease-in-out infinite",
+        marquee: "marquee 50s linear infinite",
+        "marquee-reverse": "marquee-reverse 60s linear infinite",
       },
       keyframes: {
         aurora1: {
@@ -62,6 +67,27 @@ const config: Config = {
         float3: {
           "0%, 100%": { transform: "translateY(0px)" },
           "50%": { transform: "translateY(-18px)" },
+        },
+        mesh1: {
+          "0%, 100%": { transform: "translate(0, 0) scale(1)" },
+          "33%": { transform: "translate(-30px, 20px) scale(1.1)" },
+          "66%": { transform: "translate(20px, -10px) scale(0.95)" },
+        },
+        mesh2: {
+          "0%, 100%": { transform: "translate(0, 0) scale(1)" },
+          "50%": { transform: "translate(40px, 30px) scale(1.08)" },
+        },
+        mesh3: {
+          "0%, 100%": { transform: "translate(0, 0) scale(1)" },
+          "50%": { transform: "translate(-30px, -20px) scale(1.05)" },
+        },
+        marquee: {
+          "0%": { transform: "translateX(0)" },
+          "100%": { transform: "translateX(-50%)" },
+        },
+        "marquee-reverse": {
+          "0%": { transform: "translateX(-50%)" },
+          "100%": { transform: "translateX(0)" },
         },
       },
     },

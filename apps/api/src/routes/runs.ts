@@ -5,11 +5,16 @@ import { workflows, runs, runSteps, runLogs } from "@afa/db";
 import { eq, and, desc, or } from "drizzle-orm";
 import { authenticate, type AuthContext } from "../middleware/auth.js";
 import { recordUsage } from "../middleware/metering.js";
-import { Queue } from "bullmq";
+import { Queue, QueueEvents } from "bullmq";
 import IORedis from "ioredis";
 
-const redis = new IORedis(process.env.REDIS_URL || "redis://localhost:6379");
+const redis = new IORedis(process.env.REDIS_URL || "redis://localhost:6379", {
+  maxRetriesPerRequest: null,
+});
 const executionQueue = new Queue("execution", { connection: redis });
+const executionEvents = new QueueEvents("execution", {
+  connection: { url: process.env.REDIS_URL || "redis://localhost:6379" },
+});
 
 const runRequestSchema = z.object({
   input: z.record(z.unknown()).optional().default({}),
@@ -88,9 +93,9 @@ export const runRoutes: FastifyPluginAsync = async (app) => {
 
       try {
         const result = await job.waitUntilFinished(
-          executionQueue.events,
+          executionEvents,
           timeoutMs
-        );
+        ) as any;
 
         // Record usage
         await recordUsage({
@@ -191,6 +196,74 @@ export const runRoutes: FastifyPluginAsync = async (app) => {
           estimatedRuntimeMs: workflow.avgRuntimeMs || 5000,
         },
         meta: { requestId: request.id },
+      });
+    },
+  });
+
+  // ─── List runs (paginated, optional workflow filter) ───
+  app.get("/runs", {
+    preHandler: [authenticate],
+    handler: async (request, reply) => {
+      const auth = (request as any).auth as AuthContext;
+      const query = request.query as {
+        page?: string;
+        perPage?: string;
+        workflowId?: string;
+        status?: string;
+      };
+      const page = Math.max(1, Number(query.page) || 1);
+      const perPage = Math.min(100, Math.max(1, Number(query.perPage) || 50));
+      const offset = (page - 1) * perPage;
+
+      const whereClauses = [eq(runs.userId, auth.userId)];
+      if (query.workflowId) {
+        whereClauses.push(eq(runs.workflowId, query.workflowId));
+      }
+      if (query.status) {
+        whereClauses.push(eq(runs.status, query.status));
+      }
+
+      const results = await db
+        .select({
+          id: runs.id,
+          workflowId: runs.workflowId,
+          status: runs.status,
+          mode: runs.mode,
+          runtimeMs: runs.runtimeMs,
+          stepCount: runs.stepCount,
+          startedAt: runs.startedAt,
+          completedAt: runs.completedAt,
+          createdAt: runs.createdAt,
+          error: runs.error,
+        })
+        .from(runs)
+        .where(and(...whereClauses))
+        .orderBy(desc(runs.createdAt))
+        .limit(perPage)
+        .offset(offset);
+
+      // Get workflow names for the runs
+      const workflowIds = [...new Set(results.map((r) => r.workflowId))];
+      const wfs = workflowIds.length
+        ? await db
+            .select({ id: workflows.id, name: workflows.name, slug: workflows.slug })
+            .from(workflows)
+            .where(eq(workflows.userId, auth.userId))
+        : [];
+      const wfMap = new Map(wfs.map((w) => [w.id, w]));
+
+      return reply.send({
+        data: results.map((r) => ({
+          ...r,
+          workflowName: wfMap.get(r.workflowId)?.name || "Unknown",
+          workflowSlug: wfMap.get(r.workflowId)?.slug || null,
+        })),
+        meta: {
+          requestId: request.id,
+          page,
+          perPage,
+          hasMore: results.length === perPage,
+        },
       });
     },
   });

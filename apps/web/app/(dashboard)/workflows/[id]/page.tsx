@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { api } from "@/lib/api-client";
+import { LiveRunViewer } from "@/components/runs/live-run-viewer";
 
 export default function WorkflowDetailPage({
   params,
@@ -11,8 +12,7 @@ export default function WorkflowDetailPage({
   const { id } = use(params);
   const [workflow, setWorkflow] = useState<any>(null);
   const [testInput, setTestInput] = useState("{}");
-  const [testResult, setTestResult] = useState<any>(null);
-  const [running, setRunning] = useState(false);
+  const [activeRun, setActiveRun] = useState<{ input: Record<string, unknown>; key: number } | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "api" | "runs" | "settings">("overview");
 
   useEffect(() => {
@@ -28,18 +28,14 @@ export default function WorkflowDetailPage({
     });
   }, [id]);
 
-  const handleTest = async () => {
+  const handleTest = () => {
     if (!workflow) return;
-    setRunning(true);
-    setTestResult(null);
     try {
       const input = JSON.parse(testInput);
-      const result = await api.runs.execute(workflow.slug, input);
-      setTestResult(result);
+      // Bump key so LiveRunViewer remounts and starts a fresh run
+      setActiveRun({ input, key: Date.now() });
     } catch (err: any) {
-      setTestResult({ error: err.message });
-    } finally {
-      setRunning(false);
+      setActiveRun({ input: { __error: err.message }, key: Date.now() });
     }
   };
 
@@ -181,21 +177,31 @@ export default function WorkflowDetailPage({
                 />
                 <button
                   onClick={handleTest}
-                  disabled={running}
-                  className="mt-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-500 disabled:opacity-50"
+                  className="mt-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-500"
                 >
-                  {running ? "Running..." : "Send Request"}
+                  Send Request
                 </button>
               </div>
               <div>
                 <label className="mb-1 block text-xs text-gray-500">
-                  Response
+                  Live Execution
                 </label>
-                <pre className="h-40 overflow-auto rounded-lg border border-gray-700 bg-gray-950 p-3 font-mono text-xs text-gray-300">
-                  {testResult
-                    ? JSON.stringify(testResult, null, 2)
-                    : "// Response will appear here"}
-                </pre>
+                {activeRun && !activeRun.input.__error ? (
+                  <LiveRunViewer
+                    key={activeRun.key}
+                    workflowSlug={workflow.slug}
+                    workflowId={workflow.id}
+                    input={activeRun.input}
+                  />
+                ) : activeRun?.input.__error ? (
+                  <div className="rounded-lg border border-red-900/50 bg-red-950/30 p-3 text-xs text-red-300">
+                    Invalid JSON: {String(activeRun.input.__error)}
+                  </div>
+                ) : (
+                  <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-gray-700 bg-gray-950 text-xs text-gray-500">
+                    Click &quot;Send Request&quot; to see live execution
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -209,18 +215,226 @@ export default function WorkflowDetailPage({
       )}
 
       {activeTab === "settings" && (
-        <div className="max-w-lg space-y-4">
-          <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
-            <h3 className="text-sm font-medium text-gray-300">Workflow Settings</h3>
-            <pre className="mt-2 rounded-lg bg-gray-950 p-3 font-mono text-xs text-gray-300">
-              {JSON.stringify(workflow.settings, null, 2)}
-            </pre>
-          </div>
-          <button className="rounded-lg border border-red-800 px-4 py-2 text-sm text-red-400 hover:bg-red-900/20">
-            Delete Workflow
-          </button>
-        </div>
+        <SettingsTab workflow={workflow} onUpdated={setWorkflow} />
       )}
+    </div>
+  );
+}
+
+function SettingsTab({
+  workflow,
+  onUpdated,
+}: {
+  workflow: any;
+  onUpdated: (wf: any) => void;
+}) {
+  const [name, setName] = useState(workflow.name || "");
+  const [description, setDescription] = useState(workflow.description || "");
+  const [webhookUrl, setWebhookUrl] = useState(
+    workflow.settings?.defaultWebhookUrl || ""
+  );
+  const [isActive, setIsActive] = useState(workflow.isActive ?? true);
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [webhookTestResult, setWebhookTestResult] = useState<string | null>(null);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSavedAt(null);
+    try {
+      const res = await api.workflows.update(workflow.id, {
+        name,
+        description,
+        isActive,
+        settings: {
+          ...workflow.settings,
+          defaultWebhookUrl: webhookUrl || undefined,
+        },
+      });
+      onUpdated({ ...workflow, ...res.data });
+      setSavedAt(Date.now());
+      setTimeout(() => setSavedAt(null), 2500);
+    } catch (err: any) {
+      alert(err.message || "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    if (!webhookUrl) return;
+    setTestingWebhook(true);
+    setWebhookTestResult(null);
+    try {
+      const res = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "webhook.test",
+          workflowId: workflow.id,
+          workflowName: workflow.name,
+          message: "This is a test delivery from API for Anything",
+          timestamp: new Date().toISOString(),
+        }),
+      });
+      setWebhookTestResult(
+        res.ok
+          ? `Success — webhook returned ${res.status}`
+          : `Failed — webhook returned ${res.status}`
+      );
+    } catch (err: any) {
+      setWebhookTestResult(`Network error: ${err.message}`);
+    } finally {
+      setTestingWebhook(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (
+      !confirm(
+        "Delete this workflow? This will remove all run history and cannot be undone."
+      )
+    )
+      return;
+    try {
+      await api.workflows.delete(workflow.id);
+      window.location.href = "/workflows";
+    } catch (err: any) {
+      alert(err.message || "Delete failed");
+    }
+  };
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      {/* General */}
+      <section className="rounded-xl border border-gray-800 bg-gray-900 p-5">
+        <h3 className="mb-4 text-sm font-semibold text-white">General</h3>
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs text-gray-400">Name</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-white focus:border-brand-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-gray-400">
+              Description
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              className="w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-white focus:border-brand-500 focus:outline-none"
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-300">
+            <input
+              type="checkbox"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-700 bg-gray-800 accent-brand-500"
+            />
+            Active — accept API requests
+          </label>
+        </div>
+      </section>
+
+      {/* Webhook */}
+      <section className="rounded-xl border border-gray-800 bg-gray-900 p-5">
+        <h3 className="text-sm font-semibold text-white">Webhook Delivery</h3>
+        <p className="mt-1 text-xs text-gray-400">
+          Receive run results at a webhook URL. Sent for every async run and
+          scheduled execution. Override with{" "}
+          <code className="rounded bg-gray-800 px-1.5 py-0.5 text-brand-400">
+            webhookUrl
+          </code>{" "}
+          per request.
+        </p>
+        <div className="mt-3 space-y-2">
+          <input
+            value={webhookUrl}
+            onChange={(e) => {
+              setWebhookUrl(e.target.value);
+              setWebhookTestResult(null);
+            }}
+            placeholder="https://yourapp.com/webhook/anything-api"
+            className="w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-brand-500 focus:outline-none"
+          />
+          {webhookUrl && (
+            <button
+              onClick={handleTestWebhook}
+              disabled={testingWebhook}
+              className="rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 disabled:opacity-50"
+            >
+              {testingWebhook ? "Testing..." : "Send test event"}
+            </button>
+          )}
+          {webhookTestResult && (
+            <div
+              className={`rounded-lg border px-3 py-2 text-xs ${
+                webhookTestResult.startsWith("Success")
+                  ? "border-green-700 bg-green-950/50 text-green-300"
+                  : "border-red-700 bg-red-950/50 text-red-300"
+              }`}
+            >
+              {webhookTestResult}
+            </div>
+          )}
+        </div>
+
+        {/* Webhook payload example */}
+        <details className="mt-3">
+          <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-300">
+            View payload format
+          </summary>
+          <pre className="mt-2 overflow-auto rounded-lg bg-gray-950 p-3 font-mono text-[11px] text-gray-400">
+{`POST <your-webhook-url>
+Content-Type: application/json
+
+{
+  "event": "run.completed",
+  "runId": "run_xyz789",
+  "workflowId": "wf_abc123",
+  "output": { ... },
+  "runtimeMs": 4582
+}`}
+          </pre>
+        </details>
+      </section>
+
+      {/* Actions */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-500 disabled:opacity-50"
+        >
+          {saving ? "Saving..." : "Save Settings"}
+        </button>
+        {savedAt && (
+          <span className="text-xs text-green-400">✓ Saved</span>
+        )}
+        <div className="flex-1" />
+        <button
+          onClick={handleDelete}
+          className="rounded-lg border border-red-800 px-4 py-2 text-sm text-red-400 hover:bg-red-900/20"
+        >
+          Delete Workflow
+        </button>
+      </div>
+
+      {/* Raw settings (debug) */}
+      <details className="rounded-xl border border-gray-800 bg-gray-900 p-4">
+        <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-300">
+          Raw settings (debug)
+        </summary>
+        <pre className="mt-3 overflow-auto rounded-lg bg-gray-950 p-3 font-mono text-[11px] text-gray-400">
+          {JSON.stringify(workflow.settings, null, 2)}
+        </pre>
+      </details>
     </div>
   );
 }

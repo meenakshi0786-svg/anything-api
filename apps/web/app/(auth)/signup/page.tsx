@@ -33,15 +33,8 @@ export default function SignupPage() {
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-white">Create an account</h2>
 
-      {/* OAuth providers */}
+      {/* OAuth providers (includes divider when shown) */}
       <OAuthButtons />
-
-      {/* Divider */}
-      <div className="flex items-center gap-3">
-        <div className="h-px flex-1 bg-gray-800" />
-        <span className="text-xs text-gray-500">or sign up with email</span>
-        <div className="h-px flex-1 bg-gray-800" />
-      </div>
 
       {error && (
         <div className="rounded-lg border border-red-800 bg-red-900/30 px-4 py-3 text-sm text-red-300">

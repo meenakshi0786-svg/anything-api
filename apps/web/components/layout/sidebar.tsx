@@ -47,16 +47,21 @@ export function Sidebar() {
 
   return (
     <aside className="flex w-64 flex-col border-r border-gray-800 bg-gray-950">
-      {/* Logo */}
-      <div className="flex h-14 items-center gap-2 border-b border-gray-800 px-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
+      {/* Logo — clickable, goes to landing page */}
+      <Link
+        href="/"
+        className="group flex h-14 items-center gap-2 border-b border-gray-800 px-4 transition hover:bg-gray-900/50"
+      >
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-green-400 to-green-600 text-sm font-bold text-gray-950">
           A
         </div>
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-sm font-semibold text-white">API for Anything</h1>
-          <p className="text-[10px] text-gray-500">v0.1.0</p>
+          <p className="text-[10px] text-gray-500 group-hover:text-brand-400">
+            ← Back to homepage
+          </p>
         </div>
-      </div>
+      </Link>
 
       {/* Quick create */}
       <div className="p-3">

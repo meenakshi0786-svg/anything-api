@@ -33,6 +33,121 @@
   }
 }
 
+/* ─── Hero text effects ────────────────────────────────── */
+
+/* Animated rainbow gradient — smoothly shifts colors */
+.hero-gradient-text {
+  background: linear-gradient(
+    90deg,
+    #39ff14 0%,
+    #10b981 20%,
+    #06b6d4 40%,
+    #6366f1 60%,
+    #a855f7 80%,
+    #39ff14 100%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: hero-gradient-shift 6s ease-in-out infinite;
+}
+
+@keyframes hero-gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Shimmer sweep — diagonal highlight passes across text */
+.hero-shimmer {
+  position: relative;
+  display: inline-block;
+}
+
+.hero-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.4) 45%,
+    rgba(255, 255, 255, 0.6) 50%,
+    rgba(255, 255, 255, 0.4) 55%,
+    transparent 70%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: hero-shimmer-sweep 4s ease-in-out infinite;
+  animation-delay: 1s;
+  pointer-events: none;
+}
+
+@keyframes hero-shimmer-sweep {
+  0% { background-position: 200% 50%; }
+  50% { background-position: -100% 50%; }
+  100% { background-position: -100% 50%; }
+}
+
+/* Soft glowing halo behind the gradient text */
+.hero-glow {
+  position: relative;
+}
+
+.hero-glow::before {
+  content: "";
+  position: absolute;
+  inset: -20% -10%;
+  z-index: -1;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(57, 255, 20, 0.25) 0%,
+    rgba(99, 102, 241, 0.15) 30%,
+    rgba(168, 85, 247, 0.1) 50%,
+    transparent 70%
+  );
+  filter: blur(40px);
+  animation: hero-glow-pulse 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes hero-glow-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+/* Subtle float for the whole headline */
+.hero-float {
+  animation: hero-float 6s ease-in-out infinite;
+}
+
+@keyframes hero-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* Legal page content */
+.legal-content {
+  color: rgb(209 213 219);
+}
+.legal-content p {
+  margin-top: 0.75rem;
+  line-height: 1.65;
+}
+.legal-content section {
+  margin-top: 1.5rem;
+}
+.legal-content a {
+  color: rgb(57 255 20);
+}
+.legal-content a:hover {
+  text-decoration: underline;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

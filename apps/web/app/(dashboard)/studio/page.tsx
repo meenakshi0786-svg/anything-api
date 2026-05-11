@@ -94,6 +94,7 @@ export default function StudioPage() {
             <WorkflowCanvas
               steps={workflowSteps}
               onStepsChange={handleStepsChange}
+              workflowId={currentWorkflow?.id}
             />
           )}
         </div>

@@ -92,7 +92,7 @@ export class ExecutionEngine {
       runId: this.config.runId,
       input: this.config.input,
       session,
-      variables: { ...this.config.input },
+      variables: { input: this.config.input, ...this.config.input },
       screenshots: [],
     };
 
@@ -116,8 +116,12 @@ export class ExecutionEngine {
       const browserMs = Date.now() - browserStartTime;
       const runtimeMs = Date.now() - startTime;
 
+      // Build clean output — pick last meaningful step's output
+      // Strategy: prefer output of last step, fall back to merged extract/transform results
+      const output = buildOutput(steps, context.variables);
+
       return {
-        output: context.variables,
+        output,
         runtimeMs,
         browserMs,
         stepCount: steps.length,
@@ -292,4 +296,39 @@ export class ExecutionEngine {
   ): Promise<void> {
     await db.insert(runLogs).values({ runId, stepId, level, message }).catch(() => {});
   }
+}
+
+/**
+ * Build clean API output from execution variables.
+ * Strategy:
+ *   1. Find the last "data-producing" step (extract, transform, paginate, ai_decide)
+ *   2. Return its output as the response
+ *   3. If multiple, merge them (transform output takes priority)
+ */
+function buildOutput(
+  steps: WorkflowStep[],
+  variables: Record<string, unknown>
+): Record<string, unknown> {
+  const dataStepTypes = new Set(["extract", "transform", "paginate", "ai_decide"]);
+  const dataSteps = steps.filter((s) => dataStepTypes.has(s.type));
+
+  if (dataSteps.length === 0) {
+    // Fall back to filtering out internal keys
+    const { input, ...rest } = variables;
+    return rest;
+  }
+
+  // Use the last data step's output, or merge if multiple
+  const lastStep = dataSteps[dataSteps.length - 1];
+  const lastOutput = variables[lastStep.id];
+
+  if (lastOutput && typeof lastOutput === "object") {
+    // If it's an array (paginate result), wrap in an object
+    if (Array.isArray(lastOutput)) {
+      return { results: lastOutput };
+    }
+    return lastOutput as Record<string, unknown>;
+  }
+
+  return { result: lastOutput };
 }
